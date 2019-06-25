@@ -41,19 +41,19 @@ RegisterCommand("race", function(source, args)
         if amount then
             -- Get optional start delay argument and starting coordinates
             local startDelay = tonumber(args[3])
-            startDelay = startDelay and startDelay*1000 or config.joinDuration
+            startDelay = startDelay and startDelay*1000 or config_cl.joinDuration
             local startCoords = GetEntityCoords(GetPlayerPed(-1))
 
             -- Create a race using checkpoints or waypoint if none set
             if #recordedCheckpoints > 0 then
                 -- Create race using custom checkpoints
-                TriggerServerEvent('races:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints, config.finishTimeout)
+                TriggerServerEvent('races:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints)
             elseif IsWaypointActive() then
                 -- Create race using waypoint as the only checkpoint
                 local waypointCoords = GetBlipInfoIdCoord(GetFirstBlipInfoId(8))
                 local retval, nodeCoords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 0)
                 table.insert(recordedCheckpoints, {blip = nil, coords = nodeCoords})
-                TriggerServerEvent('races:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints, config.finishTimeout)
+                TriggerServerEvent('races:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints)
             end
 
             -- Set state to none to cleanup recording blips while waiting to join
@@ -93,7 +93,7 @@ AddEventHandler("races:joinedRace_cl", function(index)
     local checkpoints = race.checkpoints
     for index, checkpoint in pairs(checkpoints) do
         checkpoint.blip = AddBlipForCoord(checkpoint.coords.x, checkpoint.coords.y, checkpoint.coords.z)
-        SetBlipColour(checkpoint.blip, config.checkpointBlipColor)
+        SetBlipColour(checkpoint.blip, config_cl.checkpointBlipColor)
         SetBlipAsShortRange(checkpoint.blip, true)
         ShowNumberOnBlip(checkpoint.blip, index)
     end
@@ -101,7 +101,7 @@ AddEventHandler("races:joinedRace_cl", function(index)
     -- Clear waypoint and add route for first checkpoint blip
     SetWaypointOff()
     SetBlipRoute(checkpoints[1].blip, true)
-    SetBlipRouteColour(checkpoints[1].blip, config.checkpointBlipColor)
+    SetBlipRouteColour(checkpoints[1].blip, config_cl.checkpointBlipColor)
 end)
 
 -- Client event for when a race is removed
@@ -148,22 +148,22 @@ Citizen.CreateThread(function()
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
 
                     -- Create checkpoint when enabled
-                    if config.checkpointRadius > 0 then
+                    if config_cl.checkpointRadius > 0 then
                         local checkpointType = raceStatus.checkpoint < #race.checkpoints and RACE_CHECKPOINT_TYPE or RACE_CHECKPOINT_FINISH_TYPE
-                        checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config.checkpointRadius, 255, 255, 0, 127, 0)
-                        SetCheckpointCylinderHeight(checkpoint.checkpoint, config.checkpointHeight, config.checkpointHeight, config.checkpointRadius)
+                        checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
+                        SetCheckpointCylinderHeight(checkpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
                     end
 
                     -- Set blip route for navigation
                     SetBlipRoute(checkpoint.blip, true)
-                    SetBlipRouteColour(checkpoint.blip, config.checkpointBlipColor)
+                    SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)
                 else
                     -- Check player distance from current checkpoint
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
-                    if GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false) < config.checkpointProximity then
+                    if GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false) < config_cl.checkpointProximity then
                         -- Passed the checkpoint, delete map blip and checkpoint
                         RemoveBlip(checkpoint.blip)
-                        if config.checkpointRadius > 0 then
+                        if config_cl.checkpointRadius > 0 then
                             DeleteCheckpoint(checkpoint.checkpoint)
                         end
                         
@@ -188,29 +188,29 @@ Citizen.CreateThread(function()
                             local nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
 
                             -- Create checkpoint when enabled
-                            if config.checkpointRadius > 0 then
+                            if config_cl.checkpointRadius > 0 then
                                 local checkpointType = raceStatus.checkpoint < #race.checkpoints and RACE_CHECKPOINT_TYPE or RACE_CHECKPOINT_FINISH_TYPE
-                                nextCheckpoint.checkpoint = CreateCheckpoint(checkpointType, nextCheckpoint.coords.x,  nextCheckpoint.coords.y, nextCheckpoint.coords.z, 0, 0, 0, config.checkpointRadius, 255, 255, 0, 127, 0)
-                                SetCheckpointCylinderHeight(nextCheckpoint.checkpoint, config.checkpointHeight, config.checkpointHeight, config.checkpointRadius)
+                                nextCheckpoint.checkpoint = CreateCheckpoint(checkpointType, nextCheckpoint.coords.x,  nextCheckpoint.coords.y, nextCheckpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
+                                SetCheckpointCylinderHeight(nextCheckpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
                             end
 
                             -- Set blip route for navigation
                             SetBlipRoute(nextCheckpoint.blip, true)
-                            SetBlipRouteColour(nextCheckpoint.blip, config.checkpointBlipColor)
+                            SetBlipRouteColour(nextCheckpoint.blip, config_cl.checkpointBlipColor)
                         end
                     end
                 end
 
                 -- Draw HUD when it's enabled
-                if config.hudEnabled then
+                if config_cl.hudEnabled then
                     -- Draw time and checkpoint HUD above minimap
                     local timeSeconds = (GetGameTimer() - race.startTime)/1000.0
                     local timeMinutes = math.floor(timeSeconds/60.0)
                     timeSeconds = timeSeconds - 60.0*timeMinutes
-                    Draw2DText(config.hudPosition.x, config.hudPosition.y, ("~y~%02d:%06.3f"):format(timeMinutes, timeSeconds), 0.7)
+                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y, ("~y~%02d:%06.3f"):format(timeMinutes, timeSeconds), 0.7)
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
                     local checkpointDist = math.floor(GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false))
-                    Draw2DText(config.hudPosition.x, config.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm)"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist), 0.5)
+                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm)"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist), 0.5)
                 end
             -- Player has joined a race
             elseif raceStatus.state == RACE_STATE_JOINED then
@@ -223,7 +223,7 @@ Citizen.CreateThread(function()
                     raceStatus.state = RACE_STATE_RACING
                     raceStatus.checkpoint = 0
                     FreezeEntityPosition(vehicle, false)
-                elseif count <= config.freezeDuration then
+                elseif count <= config_cl.freezeDuration then
                     -- Display countdown text and freeze vehicle position
                     Draw2DText(0.5, 0.4, ("~y~%d"):format(math.ceil(count/1000.0)), 3.0)
                     FreezeEntityPosition(vehicle, true)
@@ -242,7 +242,7 @@ Citizen.CreateThread(function()
                     local proximity = GetDistanceBetweenCoords(position.x, position.y, position.z, race.startCoords.x, race.startCoords.y, race.startCoords.z, true)
 
                     -- When in proximity and race hasn't started draw 3D text and prompt to join
-                    if proximity < config.joinProximity and currentTime < race.startTime then
+                    if proximity < config_cl.joinProximity and currentTime < race.startTime then
                         -- Draw 3D text
                         local count = math.ceil((race.startTime - currentTime)/1000.0)
                         local temp, zCoord = GetGroundZFor_3dCoord(race.startCoords.x, race.startCoords.y, 9999.9, 0)
@@ -250,7 +250,7 @@ Citizen.CreateThread(function()
                         Draw3DText(race.startCoords.x, race.startCoords.y, zCoord+0.80, "Press [~g~E~w~] to join")
 
                         -- Check if player enters the race and send join event to server
-                        if IsControlJustReleased(1, config.joinKeybind) then
+                        if IsControlJustReleased(1, config_cl.joinKeybind) then
                             TriggerServerEvent('races:joinRace_sv', index)
                             break
                         end
@@ -273,7 +273,7 @@ Citizen.CreateThread(function()
             if IsWaypointActive() then
                 -- Get closest vehicle node to waypoint coordinates and remove waypoint
                 local waypointCoords = GetBlipInfoIdCoord(GetFirstBlipInfoId(8))
-                local retval, coords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 0)
+                local retval, coords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 1)
                 SetWaypointOff()
 
                 -- Check if coordinates match any existing checkpoints
@@ -296,7 +296,7 @@ Citizen.CreateThread(function()
                 if (coords ~= nil) then
                     -- Add numbered checkpoint blip
                     local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
-                    SetBlipColour(blip, config.checkpointBlipColor)
+                    SetBlipColour(blip, config_cl.checkpointBlipColor)
                     SetBlipAsShortRange(blip, true)
                     ShowNumberOnBlip(blip, #recordedCheckpoints+1)
 

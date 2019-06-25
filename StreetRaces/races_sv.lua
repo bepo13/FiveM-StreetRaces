@@ -43,8 +43,9 @@ AddEventHandler("races:createRace_sv", function(amount, startDelay, startCoords,
         startTime = GetGameTimer() + startDelay,
         startCoords = startCoords,
         checkpoints = checkpoints,
+        finishTimeout = config_sv.finishTimeout,
         players = {},
-        finishTimeout = finishTimeout,
+        prize = 0,
         finishTime = 0
     }
     table.insert(races, race)
@@ -64,9 +65,13 @@ AddEventHandler("races:cancelRace_sv", function()
         if source == race.owner and time < race.startTime then
             -- Send notification and refund money for all entered players
             for _, player in pairs(race.players) do
+                -- Refund money to player and remove from prize pool
+                addMoney(player, race.amount)
+                race.prize = race.prize - race.amount
+
+                -- Notify player race has been canceled
                 local msg = "Race canceled"
                 notifyPlayer(player, msg)
-                addMoney(player, race.amount)
             end
 
             -- Remove race from table and send client event
@@ -80,14 +85,16 @@ end)
 RegisterNetEvent("races:joinRace_sv")
 AddEventHandler("races:joinRace_sv", function(index)
     -- Validate and deduct player money
-    local amount = races[index].amount
+    local race = races[index]
+    local amount = race.amount
     local playerMoney = getMoney(source)
     if playerMoney >= amount then
-        -- Deduct money and add player to race
+        -- Deduct money from player and add to prize pool
         removeMoney(source, amount)
-        table.insert(races[index].players, source)
+        race.prize = race.prize + amount
 
-        -- Send join event back to client
+        -- Add player to race and send join event back to client
+        table.insert(races[index].players, source)
         TriggerClientEvent("races:joinedRace_cl", source, index)
     else
         -- Insufficient money, send notification back to client
@@ -129,12 +136,18 @@ AddEventHandler("races:finishedRace_sv", function(index, time)
             if race.finishTime == 0 then
                 -- Winner, set finish time and award prize money
                 race.finishTime = time
-                local prize = race.amount * #players
-                addMoney(source, prize)
+                addMoney(source, race.prize)
 
-                -- Send winner notification to all clients
-                local msg = ("%s won (%02d:%06.3f)"):format(getName(source), timeMinutes, timeSeconds)
-                notifyPlayer(-1, msg)
+                -- Send winner notification to players
+                for _, pSource in pairs(players) do
+                    if pSource == source then
+                        local msg = ("You won (%02d:%06.3f)"):format(timeMinutes, timeSeconds)
+                        notifyPlayer(pSource, msg)
+                    elseif config_sv.notifyOfWinner then
+                        local msg = ("%s won (%02d:%06.3f)"):format(getName(source), timeMinutes, timeSeconds)
+                        notifyPlayer(pSource, msg)
+                    end
+                end
             else
                 -- Loser, send notification to only the player
                 local msg = ("You lost (%02d:%06.3f)"):format(timeMinutes, timeSeconds)
@@ -146,4 +159,19 @@ AddEventHandler("races:finishedRace_sv", function(index, time)
             break
         end
     end
+end)
+
+-- Server event for saving recorded checkpoints as a race
+RegisterNetEvent("races:saveRace_sv")
+AddEventHandler("races:saveRace_sv", function(name, checkpoints)
+end)
+
+-- Server event for listing recorded races
+RegisterNetEvent("races:listRace_sv")
+AddEventHandler("races:listRace_sv", function()
+end)
+
+-- Server event for loaded recorded race
+RegisterNetEvent("races:loadRace_sv")
+AddEventHandler("races:loadRace_sv", function(name)
 end)
