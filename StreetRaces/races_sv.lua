@@ -195,6 +195,9 @@ AddEventHandler("StreetRaces:deleteRace_sv", function(name)
         -- Send notification to player
         local msg = "Deleted " .. name
         notifyPlayer(source, msg)
+    else
+        local msg = "No race found with name " .. name
+        notifyPlayer(source, msg)
     end
 end)
 
@@ -228,7 +231,12 @@ AddEventHandler("StreetRaces:loadRace_sv", function(name)
 
     -- If race was found send it to the client
     if race ~= nil then
+        -- Send race data to client
         TriggerClientEvent("StreetRaces:loadRace_cl", source, race)
+
+        -- Send notification to player
+        local msg = "Loaded " .. name
+        notifyPlayer(source, msg)
     else
         local msg = "No race found with name " .. name
         notifyPlayer(source, msg)
