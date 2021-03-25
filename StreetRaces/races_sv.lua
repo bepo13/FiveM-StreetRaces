@@ -35,9 +35,10 @@ end)
 
 -- Server event for creating a race
 RegisterNetEvent("StreetRaces:createRace_sv")
-AddEventHandler("StreetRaces:createRace_sv", function(amount, startDelay, startCoords, checkpoints, finishTimeout)
+AddEventHandler("StreetRaces:createRace_sv", function(amount, startDelay, startCoords, TotalLaps, checkpoints, finishTimeout)
     -- Add fields to race struct and add to races array
     local race = {
+		laps = TotalLaps,
         owner = source,
         amount = amount,
         startTime = GetGameTimer() + startDelay,
@@ -52,7 +53,7 @@ AddEventHandler("StreetRaces:createRace_sv", function(amount, startDelay, startC
 
     -- Send race data to all clients
     local index = #races
-    TriggerClientEvent("StreetRaces:createRace_cl", -1, index, amount, startDelay, startCoords, checkpoints)
+    TriggerClientEvent("StreetRaces:createRace_cl", -1, index, amount, startDelay, startCoords, TotalLaps, checkpoints)
 end)
 
 -- Server event for canceling a race
@@ -87,6 +88,7 @@ AddEventHandler("StreetRaces:joinRace_sv", function(index)
     -- Validate and deduct player money
     local race = races[index]
     local amount = race.amount
+	local laps = race.laps
     local playerMoney = getMoney(source)
     if playerMoney >= amount then
         -- Deduct money from player and add to prize pool
