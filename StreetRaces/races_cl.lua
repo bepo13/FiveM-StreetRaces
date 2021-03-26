@@ -183,6 +183,7 @@ Citizen.CreateThread(function()
     while true do
         Citizen.Wait(0)
 		local checkpointType = RACE_CHECKPOINT_TYPE
+		local nextCheckpoint
 
         -- Get player and check if they're in a vehicle
         local player = GetPlayerPed(-1)
@@ -209,13 +210,16 @@ Citizen.CreateThread(function()
 
                     -- Set blip route for navigation
                     SetBlipRoute(checkpoint.blip, true)
+					print("set blip for next checkpoint first")
                     SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)
                 else
                     -- Check player distance from current checkpoint
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
                     if GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false) < config_cl.checkpointProximity then
-                        -- Passed the checkpoint, delete map blip and checkpoint
-                        RemoveBlip(checkpoint.blip)
+                        -- Passed the checkpoint, delete map blip and checkpoint (only on last lap)
+						if raceStatus.currentLap == race.laps then
+							RemoveBlip(checkpoint.blip)
+						end
                         if config_cl.checkpointRadius > 0 then
                             DeleteCheckpoint(checkpoint.checkpoint)
                         end
@@ -239,17 +243,18 @@ Citizen.CreateThread(function()
 								raceStatus.currentLap = raceStatus.currentLap + 1
 								raceStatus.checkpoint = 1
 								local checkpoint = race.checkpoints[raceStatus.checkpoint]
-								local nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
+
 								-- Create checkpoint when enabled
 								if config_cl.checkpointRadius > 0 then
 									checkpointType = RACE_CHECKPOINT_TYPE
-									nextCheckpoint.checkpoint = CreateCheckpoint(checkpointType, nextCheckpoint.coords.x,  nextCheckpoint.coords.y, nextCheckpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
-									SetCheckpointCylinderHeight(nextCheckpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
+									checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
+									SetCheckpointCylinderHeight(checkpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
 								end
 
 								-- Set blip route for navigation
-								SetBlipRoute(nextCheckpoint.blip, true)
-								SetBlipRouteColour(nextCheckpoint.blip, config_cl.checkpointBlipColor)								
+								SetBlipRoute(checkpoint.blip, true)
+								print("set blip for next checkpoint newlap")
+								SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)							
 							end
                         else
                             -- Play checkpoint sound
@@ -257,7 +262,7 @@ Citizen.CreateThread(function()
 
                             -- Increment checkpoint counter and get next checkpoint
                             raceStatus.checkpoint = raceStatus.checkpoint + 1
-                            local nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
+                            nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
 
                             -- Create checkpoint when enabled
                             if config_cl.checkpointRadius > 0 then
@@ -276,6 +281,7 @@ Citizen.CreateThread(function()
 
                             -- Set blip route for navigation
                             SetBlipRoute(nextCheckpoint.blip, true)
+							print("set blip for next checkpoint")
                             SetBlipRouteColour(nextCheckpoint.blip, config_cl.checkpointBlipColor)
                         end
                     end
