@@ -1,4 +1,4 @@
-# FiveM StreetRaces fork with laps and alternate method of adding waypoints
+# FiveM StreetRaces fork with laps, positioning system and alternate method of adding waypoints
 
 FiveM resource for street races with custom checkpoints and HUD.
 
