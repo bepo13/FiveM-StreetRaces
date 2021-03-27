@@ -5,6 +5,8 @@ local RACE_STATE_RACING = 2
 local RACE_STATE_RECORDING = 3
 local RACE_CHECKPOINT_TYPE = 45
 local RACE_CHECKPOINT_FINISH_TYPE = 9
+local oldposition = GetEntityCoords(PlayerPedId())
+local newposition = GetEntityCoords(PlayerPedId())
 
 -- Races and race status
 local races = {}
@@ -14,6 +16,10 @@ local raceStatus = {
     checkpoint = 0,
 	currentLap = 0,
 	totalLaps = 0,
+	totalCheckpoints = 0,
+	myPosition = 0,
+	totalPlayers = 0,
+	distanceTraveled = 0
 }
 
 -- Recorded checkpoints
@@ -102,11 +108,11 @@ AddEventHandler("StreetRaces:createRace_cl", function(index, amount, startDelay,
         started = false,
         startTime = GetGameTimer() + startDelay,
         startCoords = startCoords,
-        checkpoints = checkpoints
+        checkpoints = checkpoints		
     }
 
-	
 	raceStatus.totalLaps = laps
+	raceStatus.totalCheckpoints = 0
     races[index] = race
 end)
 
@@ -177,6 +183,13 @@ AddEventHandler("StreetRaces:removeRace_cl", function(index)
     table.remove(races, index)
 end)
 
+-- Client event for updated position
+RegisterNetEvent("StreetRaces:updatePos")
+AddEventHandler("StreetRaces:updatePos", function(position, allPlayers)
+	raceStatus.myPosition = position
+	raceStatus.totalPlayers = allPlayers
+end)
+
 -- Main thread
 Citizen.CreateThread(function()
     -- Loop forever and update every frame
@@ -210,7 +223,6 @@ Citizen.CreateThread(function()
 
                     -- Set blip route for navigation
                     SetBlipRoute(checkpoint.blip, true)
-					print("set blip for next checkpoint first")
                     SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)
                 else
                     -- Check player distance from current checkpoint
@@ -220,10 +232,13 @@ Citizen.CreateThread(function()
 						if raceStatus.currentLap == race.laps then
 							RemoveBlip(checkpoint.blip)
 						end
+						-- Delete the checkpoint marker in world
                         if config_cl.checkpointRadius > 0 then
                             DeleteCheckpoint(checkpoint.checkpoint)
                         end
-                        
+						-- update total checkpoints count and notify server
+						raceStatus.totalCheckpoints = raceStatus.totalCheckpoints + 1
+						                        
                         -- Check if at finish line
                         if raceStatus.checkpoint == #(race.checkpoints) then
 							if raceStatus.currentLap == (race.laps) then					
@@ -253,7 +268,6 @@ Citizen.CreateThread(function()
 
 								-- Set blip route for navigation
 								SetBlipRoute(checkpoint.blip, true)
-								print("set blip for next checkpoint newlap")
 								SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)							
 							end
                         else
@@ -281,7 +295,6 @@ Citizen.CreateThread(function()
 
                             -- Set blip route for navigation
                             SetBlipRoute(nextCheckpoint.blip, true)
-							print("set blip for next checkpoint")
                             SetBlipRouteColour(nextCheckpoint.blip, config_cl.checkpointBlipColor)
                         end
                     end
@@ -296,7 +309,7 @@ Citizen.CreateThread(function()
                     Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y, ("~y~%02d:%06.3f"):format(timeMinutes, timeSeconds), 0.7)
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
                     local checkpointDist = math.floor(GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false))
-                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm) | LAP %d/%d"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist, raceStatus.currentLap, race.laps), 0.5)
+                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm) | LAP %d/%d | POS %d/%d"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist, raceStatus.currentLap, race.laps, raceStatus.myPosition, raceStatus.totalPlayers), 0.5)
                 end
             -- Player has joined a race
             elseif raceStatus.state == RACE_STATE_JOINED then
@@ -306,6 +319,9 @@ Citizen.CreateThread(function()
                 local count = race.startTime - currentTime
                 if count <= 0 then
                     -- Race started, set racing state and unfreeze vehicle position
+					oldpos = GetEntityCoords(PlayerPedId())
+					newpos = GetEntityCoords(PlayerPedId())
+					raceStatus.distanceTraveled = 0
                     raceStatus.state = RACE_STATE_RACING
                     raceStatus.checkpoint = 0
 					raceStatus.currentLap = 1
@@ -348,6 +364,21 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- position update thread
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(100)
+        -- When recording flag is set, save checkpoints
+        if raceStatus.state == RACE_STATE_RACING then
+			newpos = GetEntityCoords(PlayerPedId())
+			dist = GetDistanceBetweenCoords(oldpos.x, oldpos.y, oldpos.z, newpos.x, newpos.y, newpos.z, true)
+			oldpos = newpos
+			raceStatus.distanceTraveled = raceStatus.distanceTraveled + dist		
+			local value = raceStatus.totalCheckpoints + math.floor(raceStatus.distanceTraveled*1.33)/1000
+			TriggerServerEvent('StreetRaces:updatecheckpoitcount_sv', raceStatus.index, value)
+		end
+	end
+end)
 -- Checkpoint recording thread
 Citizen.CreateThread(function()
     -- Loop forever and record checkpoints every 100ms
