@@ -5,13 +5,21 @@ local RACE_STATE_RACING = 2
 local RACE_STATE_RECORDING = 3
 local RACE_CHECKPOINT_TYPE = 45
 local RACE_CHECKPOINT_FINISH_TYPE = 9
+local oldposition = GetEntityCoords(PlayerPedId())
+local newposition = GetEntityCoords(PlayerPedId())
 
 -- Races and race status
 local races = {}
 local raceStatus = {
     state = RACE_STATE_NONE,
     index = 0,
-    checkpoint = 0
+    checkpoint = 0,
+	currentLap = 0,
+	totalLaps = 0,
+	totalCheckpoints = 0,
+	myPosition = 0,
+	totalPlayers = 0,
+	distanceTraveled = 0
 }
 
 -- Recorded checkpoints
@@ -59,23 +67,24 @@ RegisterCommand("race", function(source, args)
         end
     elseif args[1] == "start" then
         -- Parse arguments and create race
-        local amount = tonumber(args[2])
+        local amount = 0
         if amount then
             -- Get optional start delay argument and starting coordinates
             local startDelay = tonumber(args[3])
             startDelay = startDelay and startDelay*1000 or config_cl.joinDuration
             local startCoords = GetEntityCoords(GetPlayerPed(-1))
+			local TotalLaps = tonumber(args[2])
 
             -- Create a race using checkpoints or waypoint if none set
             if #recordedCheckpoints > 0 then
                 -- Create race using custom checkpoints
-                TriggerServerEvent('StreetRaces:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints)
+                TriggerServerEvent('StreetRaces:createRace_sv', amount, startDelay, startCoords, TotalLaps, recordedCheckpoints)
             elseif IsWaypointActive() then
                 -- Create race using waypoint as the only checkpoint
                 local waypointCoords = GetBlipInfoIdCoord(GetFirstBlipInfoId(8))
                 local retval, nodeCoords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 1)
                 table.insert(recordedCheckpoints, {blip = nil, coords = nodeCoords})
-                TriggerServerEvent('StreetRaces:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints)
+                TriggerServerEvent('StreetRaces:createRace_sv', amount, startDelay, startCoords, recordedCheckpoints, 10)
             end
 
             -- Set state to none to cleanup recording blips while waiting to join
@@ -91,15 +100,19 @@ end)
 
 -- Client event for when a race is created
 RegisterNetEvent("StreetRaces:createRace_cl")
-AddEventHandler("StreetRaces:createRace_cl", function(index, amount, startDelay, startCoords, checkpoints)
+AddEventHandler("StreetRaces:createRace_cl", function(index, amount, startDelay, startCoords, TotalLaps, checkpoints)
     -- Create race struct and add to array
     local race = {
+		laps = TotalLaps,
         amount = amount,
         started = false,
         startTime = GetGameTimer() + startDelay,
         startCoords = startCoords,
-        checkpoints = checkpoints
+        checkpoints = checkpoints		
     }
+
+	raceStatus.totalLaps = laps
+	raceStatus.totalCheckpoints = 0
     races[index] = race
 end)
 
@@ -110,7 +123,7 @@ AddEventHandler("StreetRaces:loadRace_cl", function(checkpoints)
     cleanupRecording()
     recordedCheckpoints = checkpoints
     raceStatus.state = RACE_STATE_RECORDING
-
+	raceStatus.currentLap = 1
     -- Add map blips
     for index, checkpoint in pairs(recordedCheckpoints) do
         checkpoint.blip = AddBlipForCoord(checkpoint.coords.x, checkpoint.coords.y, checkpoint.coords.z)
@@ -131,7 +144,7 @@ AddEventHandler("StreetRaces:joinedRace_cl", function(index)
     -- Set index and state to joined
     raceStatus.index = index
     raceStatus.state = RACE_STATE_JOINED
-
+	raceStatus.currentLap = 1
     -- Add map blips
     local race = races[index]
     local checkpoints = race.checkpoints
@@ -160,6 +173,7 @@ AddEventHandler("StreetRaces:removeRace_cl", function(index)
         raceStatus.index = 0
         raceStatus.checkpoint = 0
         raceStatus.state = RACE_STATE_NONE
+		raceStatus.currentLap = 0
     elseif index < raceStatus.index then
         -- Decrement raceStatus.index to match new index after removing race
         raceStatus.index = raceStatus.index - 1
@@ -169,11 +183,20 @@ AddEventHandler("StreetRaces:removeRace_cl", function(index)
     table.remove(races, index)
 end)
 
+-- Client event for updated position
+RegisterNetEvent("StreetRaces:updatePos")
+AddEventHandler("StreetRaces:updatePos", function(position, allPlayers)
+	raceStatus.myPosition = position
+	raceStatus.totalPlayers = allPlayers
+end)
+
 -- Main thread
 Citizen.CreateThread(function()
     -- Loop forever and update every frame
     while true do
         Citizen.Wait(0)
+		local checkpointType = RACE_CHECKPOINT_TYPE
+		local nextCheckpoint
 
         -- Get player and check if they're in a vehicle
         local player = GetPlayerPed(-1)
@@ -193,7 +216,7 @@ Citizen.CreateThread(function()
 
                     -- Create checkpoint when enabled
                     if config_cl.checkpointRadius > 0 then
-                        local checkpointType = raceStatus.checkpoint < #race.checkpoints and RACE_CHECKPOINT_TYPE or RACE_CHECKPOINT_FINISH_TYPE
+                        checkpointType = RACE_CHECKPOINT_TYPE
                         checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
                         SetCheckpointCylinderHeight(checkpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
                     end
@@ -205,35 +228,67 @@ Citizen.CreateThread(function()
                     -- Check player distance from current checkpoint
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
                     if GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false) < config_cl.checkpointProximity then
-                        -- Passed the checkpoint, delete map blip and checkpoint
-                        RemoveBlip(checkpoint.blip)
+                        -- Passed the checkpoint, delete map blip and checkpoint (only on last lap)
+						if raceStatus.currentLap == race.laps then
+							RemoveBlip(checkpoint.blip)
+						end
+						-- Delete the checkpoint marker in world
                         if config_cl.checkpointRadius > 0 then
                             DeleteCheckpoint(checkpoint.checkpoint)
                         end
-                        
+						-- update total checkpoints count and notify server
+						raceStatus.totalCheckpoints = raceStatus.totalCheckpoints + 1
+						                        
                         -- Check if at finish line
                         if raceStatus.checkpoint == #(race.checkpoints) then
-                            -- Play finish line sound
-                            PlaySoundFrontend(-1, "ScreenFlash", "WastedSounds")
+							if raceStatus.currentLap == (race.laps) then					
+								-- Play finish line sound
+								PlaySoundFrontend(-1, "ScreenFlash", "WastedSounds")
 
-                            -- Send finish event to server
-                            local currentTime = (GetGameTimer() - race.startTime)
-                            TriggerServerEvent('StreetRaces:finishedRace_sv', raceStatus.index, currentTime)
-                            
-                            -- Reset state
-                            raceStatus.index = 0
-                            raceStatus.state = RACE_STATE_NONE
+								-- Send finish event to server
+								local currentTime = (GetGameTimer() - race.startTime)
+								TriggerServerEvent('StreetRaces:finishedRace_sv', raceStatus.index, currentTime)
+								
+								-- Reset state
+								raceStatus.index = 0
+								raceStatus.state = RACE_STATE_NONE
+							else
+								-- add another lap
+								PlaySoundFrontend(-1, "RACE_PLACED", "HUD_AWARDS")
+								raceStatus.currentLap = raceStatus.currentLap + 1
+								raceStatus.checkpoint = 1
+								local checkpoint = race.checkpoints[raceStatus.checkpoint]
+
+								-- Create checkpoint when enabled
+								if config_cl.checkpointRadius > 0 then
+									checkpointType = RACE_CHECKPOINT_TYPE
+									checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
+									SetCheckpointCylinderHeight(checkpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
+								end
+
+								-- Set blip route for navigation
+								SetBlipRoute(checkpoint.blip, true)
+								SetBlipRouteColour(checkpoint.blip, config_cl.checkpointBlipColor)							
+							end
                         else
                             -- Play checkpoint sound
                             PlaySoundFrontend(-1, "RACE_PLACED", "HUD_AWARDS")
 
                             -- Increment checkpoint counter and get next checkpoint
                             raceStatus.checkpoint = raceStatus.checkpoint + 1
-                            local nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
+                            nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
 
                             -- Create checkpoint when enabled
                             if config_cl.checkpointRadius > 0 then
-                                local checkpointType = raceStatus.checkpoint < #race.checkpoints and RACE_CHECKPOINT_TYPE or RACE_CHECKPOINT_FINISH_TYPE
+								if raceStatus.currentLap == race.laps then
+									if raceStatus.checkpoint == #race.checkpoints then
+										checkpointType = RACE_CHECKPOINT_FINISH_TYPE
+									else
+										checkpointType = RACE_CHECKPOINT_TYPE
+									end
+								else
+									checkpointType = RACE_CHECKPOINT_TYPE
+								end
                                 nextCheckpoint.checkpoint = CreateCheckpoint(checkpointType, nextCheckpoint.coords.x,  nextCheckpoint.coords.y, nextCheckpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
                                 SetCheckpointCylinderHeight(nextCheckpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
                             end
@@ -254,7 +309,7 @@ Citizen.CreateThread(function()
                     Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y, ("~y~%02d:%06.3f"):format(timeMinutes, timeSeconds), 0.7)
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
                     local checkpointDist = math.floor(GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false))
-                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm)"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist), 0.5)
+                    Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm) | LAP %d/%d | POS %d/%d"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist, raceStatus.currentLap, race.laps, raceStatus.myPosition, raceStatus.totalPlayers), 0.5)
                 end
             -- Player has joined a race
             elseif raceStatus.state == RACE_STATE_JOINED then
@@ -264,8 +319,12 @@ Citizen.CreateThread(function()
                 local count = race.startTime - currentTime
                 if count <= 0 then
                     -- Race started, set racing state and unfreeze vehicle position
+					oldpos = GetEntityCoords(PlayerPedId())
+					newpos = GetEntityCoords(PlayerPedId())
+					raceStatus.distanceTraveled = 0
                     raceStatus.state = RACE_STATE_RACING
                     raceStatus.checkpoint = 0
+					raceStatus.currentLap = 1
                     FreezeEntityPosition(vehicle, false)
                 elseif count <= config_cl.freezeDuration then
                     -- Display countdown text and freeze vehicle position
@@ -305,11 +364,26 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- position update thread
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(100)
+        -- When recording flag is set, save checkpoints
+        if raceStatus.state == RACE_STATE_RACING then
+			newpos = GetEntityCoords(PlayerPedId())
+			dist = GetDistanceBetweenCoords(oldpos.x, oldpos.y, oldpos.z, newpos.x, newpos.y, newpos.z, true)
+			oldpos = newpos
+			raceStatus.distanceTraveled = raceStatus.distanceTraveled + dist		
+			local value = raceStatus.totalCheckpoints + math.floor(raceStatus.distanceTraveled*1.33)/1000
+			TriggerServerEvent('StreetRaces:updatecheckpoitcount_sv', raceStatus.index, value)
+		end
+	end
+end)
 -- Checkpoint recording thread
 Citizen.CreateThread(function()
     -- Loop forever and record checkpoints every 100ms
     while true do
-        Citizen.Wait(100)
+        Citizen.Wait(0)
         
         -- When recording flag is set, save checkpoints
         if raceStatus.state == RACE_STATE_RECORDING then
@@ -318,6 +392,7 @@ Citizen.CreateThread(function()
                 -- Get closest vehicle node to waypoint coordinates and remove waypoint
                 local waypointCoords = GetBlipInfoIdCoord(GetFirstBlipInfoId(8))
                 local retval, coords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 1)
+				
                 SetWaypointOff()
 
                 -- Check if coordinates match any existing checkpoints
@@ -348,6 +423,25 @@ Citizen.CreateThread(function()
                     table.insert(recordedCheckpoints, {blip = blip, coords = coords})
                 end
             end
+			if IsControlJustReleased(0, config_cl.markerKeybind) then
+				local player = GetPlayerPed(-1)
+				local coords = GetEntityCoords(player)
+
+                -- Add new checkpoint
+                if (coords ~= nil) then
+                    -- Add numbered checkpoint blip
+                    local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
+                    SetBlipColour(blip, config_cl.checkpointBlipColor)
+                    SetBlipAsShortRange(blip, true)
+                    ShowNumberOnBlip(blip, #recordedCheckpoints+1)
+
+                    -- Add checkpoint to array
+                    table.insert(recordedCheckpoints, {blip = blip, coords = coords})
+                end
+				PlaySoundFrontend(-1, "RACE_PLACED", "HUD_AWARDS")
+			end
+				
+			
         else
             -- Not recording, do cleanup
             cleanupRecording()
