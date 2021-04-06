@@ -17,6 +17,9 @@ local raceStatus = {
 -- Recorded checkpoints
 local recordedCheckpoints = {}
 
+-- Blips
+local allBlips = {}
+
 -- Main command for races
 RegisterCommand("race", function(source, args)
     if args[1] == "clear" or args[1] == "leave" then
@@ -40,7 +43,7 @@ RegisterCommand("race", function(source, args)
         local name = args[2]
         if name ~= nil and #recordedCheckpoints > 0 then
             -- Send event to server to save checkpoints
-            TriggerServerEvent('StreetRaces:saveRace_sv', name, recordedCheckpoints)
+            TriggerServerEvent('StreetRaces:saveRace_sv', name, recordedCheckpoints)          
         end
     elseif args[1] == "delete" then
         -- Check name was provided and send event to server to delete saved race
@@ -432,4 +435,112 @@ function Draw2DText(x, y, text, scale)
     SetTextEntry("STRING")
     AddTextComponentString(text)
     DrawText(x, y)
+end
+
+-- Updating blips
+if config_cl.showBlips == true then
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(0)
+            -- Remove current blips
+            for i, value in pairs(allBlips) do
+                RemoveBlip(allBlips[i][2])
+            end
+            allBlips = {}
+            
+            -- Get new blips
+            TriggerServerEvent("StreetRaces:getNewCoordsForBlips_sv")
+
+            -- Cooldown
+            Citizen.Wait(config_cl.blipsUpdateTime)
+
+        end
+    end)
+end
+
+-- Adding blips to the table (server side calls this)
+RegisterNetEvent("StreetRaces:addBlipToTable")
+AddEventHandler("StreetRaces:addBlipToTable", function(name, x, y, z)
+    local blip = AddBlipForCoord(x, y, z)
+            SetBlipSprite(blip, 315)
+            SetBlipDisplay(blip, 4)
+            SetBlipScale  (blip, 0.9)
+            SetBlipColour (blip, config_cl.blipColor)
+            SetBlipAsShortRange(blip, true)
+            BeginTextCommandSetBlipName("STRING")
+            if (config_cl.uniqueBlipNames == true) then
+                AddTextComponentString(tostring(name))
+            else 
+                AddTextComponentString(tostring("Custom Race"))
+            end
+            EndTextCommandSetBlipName(blip)
+    table.insert(allBlips,{name,blip})
+end)
+
+-- Spawn markers to quickstart races
+if config_cl.quickStartMarkers == true then
+    local gotMessage = false;
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(0)
+            for i, value in pairs(allBlips) do
+                local pedCoords = GetEntityCoords(PlayerPedId())
+                local markerPos = GetBlipCoords(allBlips[i][2])
+                local distance = #(pedCoords - markerPos)
+                if distance < 50.0 then
+                    DrawMarker(
+                        1, 
+                        markerPos.x, 
+                        markerPos.y, 
+                        markerPos.z, 
+                        0.0, 
+                        0.0, 
+                        0.0, 
+                        0.0, 
+                        0.0, 
+                        0.0, 
+                        7.0, 
+                        7.0, 
+                        2.0, 
+                        config_cl.quickStartMarkerColorRed, 
+                        config_cl.quickStartMarkerColorGreen, 
+                        config_cl.quickStartMarkerColorBlue, 
+                        50, 
+                        false, 
+                        false, 
+                        2, 
+                        nil, 
+                        nil, 
+                        nil, 
+                        false
+                    )
+                    if distance < 10.0  then
+                        if gotMessage == false then
+                            DisplayHelpText("Press ~INPUT_DETONATE~ to launch this race")
+                            --TriggerEvent('chat:addMessage', {
+                            --    color = { 255, 0, 0},
+                            --    multiline = true,
+                            --    args = {"Me", "You are here"}
+                            --})
+                            gotMessage = true
+                        end
+                        if IsControlJustReleased(0,  47) and raceStatus.state == RACE_STATE_NONE then
+                            ExecuteCommand("race load " .. allBlips[i][1])
+                            Citizen.Wait(100)
+                            ExecuteCommand("race start " .. config_cl.quickStartMoney .. " " .. config_cl.quickStartReadyUpTime)
+                        end
+                    else
+                        gotMessage = false
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- You can display help texts with this function
+function DisplayHelpText(text)
+	BeginTextCommandDisplayHelp("STRING")
+	AddTextComponentSubstringPlayerName(text)
+	DisplayHelpTextFromStringLabel(0, 0, 1, -1)
 end
