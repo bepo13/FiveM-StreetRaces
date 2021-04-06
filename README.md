@@ -13,3 +13,4 @@ FiveM resource for street races with custom checkpoints and HUD.
 3. Map blips where the races begin (first checkpoint)
 4. Markers at the blips to quick start the races (no need to type /race start -money- -time-)
 5. More configurations: blip color, unique blip names, marker color , quickstart money ammount etc..
+video: https://www.youtube.com/watch?v=7VLbqP7pa8A
