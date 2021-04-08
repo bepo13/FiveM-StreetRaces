@@ -242,3 +242,12 @@ AddEventHandler("StreetRaces:loadRace_sv", function(name)
         notifyPlayer(source, msg)
     end
 end)
+
+-- Feeding new race blips to the clients
+RegisterNetEvent("StreetRaces:getNewCoordsForBlips_sv")
+AddEventHandler("StreetRaces:getNewCoordsForBlips_sv", function()
+    local playerRaces = loadPlayerData(source)
+    for name, race in pairs(playerRaces) do
+        TriggerClientEvent("StreetRaces:addBlipToTable", source, name, race[1].coords.x, race[1].coords.y, race[1].coords.z)
+    end
+end)

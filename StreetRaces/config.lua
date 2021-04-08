@@ -9,7 +9,18 @@ config_cl = {
     checkpointHeight = 10.0,            -- Height of 3D checkpoints in meters
     checkpointBlipColor = 5,            -- Color of checkpoint map blips and navigation (see SetBlipColour native reference)
     hudEnabled = true,                  -- Enable racing HUD with time and checkpoints
-    hudPosition = vec(0.015, 0.725)     -- Screen position to draw racing HUD
+    hudPosition = vec(0.015, 0.725),    -- Screen position to draw racing HUD
+
+    showBlips = true,                   -- Draw blips on the map for custom races
+    blipColor = 3,                      -- Map blip color
+    blipsUpdateTime = 30000,            -- How often should the client update the blips on the map in milliseconds (dont set it to 0 or a small number, blips will blink or wont even show up)
+    uniqueBlipNames = false,            -- True = blip's name will be the name of the race, False = every blip will be called Custom Race and will be grouped together
+    quickStartMarkers = true,           -- Spawn quickstart markers on the game world. Press ~INPUT_DETONATE~ (G) to start the race lobby
+    quickStartMarkerColorRed = 0,       -- Quickstart marker color red value
+    quickStartMarkerColorGreen = 128,   -- Quickstart marker color green value
+    quickStartMarkerColorBlue = 255,    -- Quickstart marker color blue value
+    quickStartMoney = 0,                -- Quickstart wager 
+    quickStartReadyUpTime = 20          -- Quickstart race wait time in seconds
 }
 
 -- SERVER CONFIGURATION
