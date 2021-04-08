@@ -248,6 +248,6 @@ RegisterNetEvent("StreetRaces:getNewCoordsForBlips_sv")
 AddEventHandler("StreetRaces:getNewCoordsForBlips_sv", function()
     local playerRaces = loadPlayerData(source)
     for name, race in pairs(playerRaces) do
-        TriggerClientEvent("StreetRaces:addBlipToTable", -1, name, race[1].coords.x, race[1].coords.y, race[1].coords.z)
+        TriggerClientEvent("StreetRaces:addBlipToTable", source, name, race[1].coords.x, race[1].coords.y, race[1].coords.z)
     end
 end)
