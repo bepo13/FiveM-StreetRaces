@@ -305,18 +305,34 @@ Citizen.CreateThread(function()
     end
 end)
 
+function displayHelpText(str)
+    BeginTextCommandDisplayHelp("STRING")
+    AddTextComponentString(str)
+    EndTextCommandDisplayHelp(0, false, true, -1)
+end
+
 -- Checkpoint recording thread
 Citizen.CreateThread(function()
     -- Loop forever and record checkpoints every 100ms
+    local lastControl = false
     while true do
-        Citizen.Wait(100)
+        Citizen.Wait(0)
         
         -- When recording flag is set, save checkpoints
         if raceStatus.state == RACE_STATE_RECORDING then
+            displayHelpText("Recording race track press ~INPUT_PICKUP~ to set checkpoints or use map waypoints~b~")
+            
             -- Create new checkpoint when waypoint is set
-            if IsWaypointActive() then
+            local currentReleased = IsControlReleased(1, 38);
+            
+            local justReleased = (currentReleased == false and lastControl == 1)
+            
+            if IsWaypointActive() or justReleased then -- also can add waypoints with E
                 -- Get closest vehicle node to waypoint coordinates and remove waypoint
                 local waypointCoords = GetBlipInfoIdCoord(GetFirstBlipInfoId(8))
+                if justReleased then
+                    waypointCoords = GetEntityCoords(PlayerPedId())
+                end
                 local retval, coords = GetClosestVehicleNode(waypointCoords.x, waypointCoords.y, waypointCoords.z, 1)
                 SetWaypointOff()
 
@@ -348,6 +364,8 @@ Citizen.CreateThread(function()
                     table.insert(recordedCheckpoints, {blip = blip, coords = coords})
                 end
             end
+            
+            lastControl = currentReleased
         else
             -- Not recording, do cleanup
             cleanupRecording()
