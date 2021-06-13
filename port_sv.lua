@@ -1,23 +1,37 @@
+MRP = nil
+Citizen.CreateThread(function()
+    while MRP == nil do
+        Citizen.Wait(0)
+        TriggerEvent('mrp:getSharedObject', function(obj) MRP = obj end)
+    end
+end)
+
 -- Helper function for getting player money
 function getMoney(source)
-    -- Add framework API's here (return large number by default)
-    return 1000000
+    local char = MRP.getSpawnedCharacter(source)
+    if char ~= nil then
+        return char.stats.cash
+    end
+    return 0
 end
 
 -- Helper function for removing player money
 function removeMoney(source, amount)
-    -- Add framework API's here
+    TriggerEvent('mrp:bankin:server:add:cash', source, -amount)
 end
 
 -- Helper function for adding player money
 function addMoney(source, amount)
-    -- Add framework API's here
+    TriggerEvent('mrp:bankin:server:add:cash', source, amount)
 end
 
 -- Helper function for getting player name
 function getName(source)
-    -- Add framework API's here
-    return GetPlayerName(source)
+    local char = MRP.getSpawnedCharacter(source)
+    if char ~= nil then
+        return char.name .. ' ' .. char.surname
+    end
+    return 'Unavailable'
 end
 
 -- Helper function for notifying players
