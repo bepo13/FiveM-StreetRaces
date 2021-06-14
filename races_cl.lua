@@ -14,6 +14,8 @@ local raceStatus = {
     checkpoint = 0
 }
 
+local raceFlags = {}
+
 -- Recorded checkpoints
 local recordedCheckpoints = {}
 
@@ -23,6 +25,7 @@ RegisterCommand("race", function(source, args)
         -- If player is part of a race, clean up map and send leave event to server
         if raceStatus.state == RACE_STATE_JOINED or raceStatus.state == RACE_STATE_RACING then
             cleanupRace()
+            clearFlags()
             TriggerServerEvent('StreetRaces:leaveRace_sv', raceStatus.index)
         end
 
@@ -34,6 +37,7 @@ RegisterCommand("race", function(source, args)
         -- Clear waypoint, cleanup recording and set flag to start recording
         SetWaypointOff()
         cleanupRecording()
+        clearFlags()
         raceStatus.state = RACE_STATE_RECORDING
     elseif args[1] == "save" then
         -- Check name was provided and checkpoints are recorded
@@ -84,6 +88,7 @@ RegisterCommand("race", function(source, args)
     elseif args[1] == "cancel" then
         -- Send cancel event to server
         TriggerServerEvent('StreetRaces:cancelRace_sv')
+        clearFlags()
     else
         return
     end
@@ -108,6 +113,7 @@ RegisterNetEvent("StreetRaces:loadRace_cl")
 AddEventHandler("StreetRaces:loadRace_cl", function(checkpoints)
     -- Cleanup recording, save checkpoints and set state to recording
     cleanupRecording()
+    clearFlags()
     recordedCheckpoints = checkpoints
     raceStatus.state = RACE_STATE_RECORDING
 
@@ -123,6 +129,13 @@ AddEventHandler("StreetRaces:loadRace_cl", function(checkpoints)
     SetWaypointOff()
     SetBlipRoute(checkpoints[1].blip, true)
     SetBlipRouteColour(checkpoints[1].blip, config_cl.checkpointBlipColor)
+    
+    -- create race flags at the starting line
+    local retval, coords = GetClosestVehicleNode(checkpoints[1].coords.x, checkpoints[1].coords.y, checkpoints[1].coords.z, 1)
+    local _, safePos = GetSafeCoordForPed(checkpoints[1].coords.x, checkpoints[1].coords.y, checkpoints[1].coords.z, true, 14)
+    local raceFlag = CreateObject(GetHashKey('prop_beachflag_01'), safePos.x, safePos.y, checkpoints[1].coords.z, true)
+    
+    table.insert(raceFlags, raceFlag)
 end)
 
 -- Client event for when a race is joined
@@ -409,6 +422,14 @@ function cleanupRecording()
         checkpoint.blip = nil
     end
     recordedCheckpoints = {}
+end
+
+function clearFlags()
+    for _, flag in pairs(raceFlags) do
+        DeleteEntity(flag)
+    end
+    
+    raceFlags = {}
 end
 
 -- Draw 3D text at coordinates
