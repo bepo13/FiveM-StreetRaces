@@ -119,6 +119,9 @@ AddEventHandler("StreetRaces:loadRace_cl", function(checkpoints)
 
     -- Add map blips
     for index, checkpoint in pairs(recordedCheckpoints) do
+        checkpoint.coords.x = checkpoint.coords.x + .0
+        checkpoint.coords.y = checkpoint.coords.y + .0
+        checkpoint.coords.z = checkpoint.coords.z + .0
         checkpoint.blip = AddBlipForCoord(checkpoint.coords.x, checkpoint.coords.y, checkpoint.coords.z)
         SetBlipColour(checkpoint.blip, config_cl.checkpointBlipColor)
         SetBlipAsShortRange(checkpoint.blip, true)
@@ -149,6 +152,9 @@ AddEventHandler("StreetRaces:joinedRace_cl", function(index)
     local race = races[index]
     local checkpoints = race.checkpoints
     for index, checkpoint in pairs(checkpoints) do
+        checkpoint.coords.x = checkpoint.coords.x + .0
+        checkpoint.coords.y = checkpoint.coords.y + .0
+        checkpoint.coords.z = checkpoint.coords.z + .0
         checkpoint.blip = AddBlipForCoord(checkpoint.coords.x, checkpoint.coords.y, checkpoint.coords.z)
         SetBlipColour(checkpoint.blip, config_cl.checkpointBlipColor)
         SetBlipAsShortRange(checkpoint.blip, true)
@@ -207,6 +213,9 @@ Citizen.CreateThread(function()
                     -- Create checkpoint when enabled
                     if config_cl.checkpointRadius > 0 then
                         local checkpointType = raceStatus.checkpoint < #race.checkpoints and RACE_CHECKPOINT_TYPE or RACE_CHECKPOINT_FINISH_TYPE
+                        checkpoint.coords.x = checkpoint.coords.x + .0
+                        checkpoint.coords.y = checkpoint.coords.y + .0
+                        checkpoint.coords.z = checkpoint.coords.z + .0
                         checkpoint.checkpoint = CreateCheckpoint(checkpointType, checkpoint.coords.x,  checkpoint.coords.y, checkpoint.coords.z, 0, 0, 0, config_cl.checkpointRadius, 255, 255, 0, 127, 0)
                         SetCheckpointCylinderHeight(checkpoint.checkpoint, config_cl.checkpointHeight, config_cl.checkpointHeight, config_cl.checkpointRadius)
                     end
@@ -217,6 +226,9 @@ Citizen.CreateThread(function()
                 else
                     -- Check player distance from current checkpoint
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
+                    checkpoint.coords.x = checkpoint.coords.x + .0
+                    checkpoint.coords.y = checkpoint.coords.y + .0
+                    checkpoint.coords.z = checkpoint.coords.z + .0
                     if GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false) < config_cl.checkpointProximity then
                         -- Passed the checkpoint, delete map blip and checkpoint
                         RemoveBlip(checkpoint.blip)
@@ -243,6 +255,9 @@ Citizen.CreateThread(function()
                             -- Increment checkpoint counter and get next checkpoint
                             raceStatus.checkpoint = raceStatus.checkpoint + 1
                             local nextCheckpoint = race.checkpoints[raceStatus.checkpoint]
+                            nextCheckpoint.coords.x = nextCheckpoint.coords.x + .0
+                            nextCheckpoint.coords.y = nextCheckpoint.coords.y + .0
+                            nextCheckpoint.coords.z = nextCheckpoint.coords.z + .0
 
                             -- Create checkpoint when enabled
                             if config_cl.checkpointRadius > 0 then
@@ -266,6 +281,9 @@ Citizen.CreateThread(function()
                     timeSeconds = timeSeconds - 60.0*timeMinutes
                     Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y, ("~y~%02d:%06.3f"):format(timeMinutes, timeSeconds), 0.7)
                     local checkpoint = race.checkpoints[raceStatus.checkpoint]
+                    checkpoint.coords.x = checkpoint.coords.x + .0
+                    checkpoint.coords.y = checkpoint.coords.y + .0
+                    checkpoint.coords.z = checkpoint.coords.z + .0
                     local checkpointDist = math.floor(GetDistanceBetweenCoords(position.x, position.y, position.z, checkpoint.coords.x, checkpoint.coords.y, 0, false))
                     Draw2DText(config_cl.hudPosition.x, config_cl.hudPosition.y + 0.04, ("~y~CHECKPOINT %d/%d (%dm)"):format(raceStatus.checkpoint, #race.checkpoints, checkpointDist), 0.5)
                 end
