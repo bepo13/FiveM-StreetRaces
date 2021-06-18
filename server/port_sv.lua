@@ -36,6 +36,9 @@ end
 
 -- Helper function for notifying players
 function notifyPlayer(source, msg)
+    if msg == nil then
+        msg = "no races"
+    end
     -- Add custom notification here (use chat by default)
     TriggerClientEvent('chatMessage', source, "[StreetRaces]", {255, 0, 0}, msg)
 end
@@ -46,50 +49,35 @@ local playersDataFile = "./StreetRaces_saveData.txt"
 
 -- Helper function for loading saved player data
 function loadPlayerData(source)
-    -- Load data from file if not already initialized
-    if playersData == nil then
-        playersData = {}
-        local file = io.open(playersDataFile, "r")
-        if file then
-            local contents = file:read("*a")
-            playersData = json.decode(contents);
-            io.close(file)
-        end
-    end
-
-    -- Get player steamID from source and use as key to get player data
-    local playerId = string.sub(GetPlayerIdentifier(source, 0), 7, -1)
-    local playerData = playersData[playerId]
-
-    -- Return saved player data
-    if playerData == nil then
+    local playerData = nil
+    
+    MRP.find('race_tracks', {}, {}, {skip = false, limit = false}, function(res)
         playerData = {}
+        
+        for name, value in pairs(res) do
+            for k, race in pairs(value) do
+                if k ~= "name" and k ~= "_id" then
+                    playerData[k] = race
+                end
+            end
+        end
+    end)
+    
+    while playerData == nil do
+        Citizen.Wait(0)
     end
+    
     return playerData
 end
 
 -- Helper function for saving player data
 function savePlayerData(source, data)
-    -- Load data from file if not already initialized
-    if playersData == nil then
-        playersData = {}
-        local file = io.open(playersDataFile, "r")
-        if file then
-            local contents = file:read("*a")
-            playersData = json.decode(contents);
-            io.close(file)
-        end
-    end
+    MRP.update('race_tracks', data, {name = data.name}, {upsert=true}, function(res)
+        print('race track saved')
+    end)
+end
 
-    -- Get player steamID from source and use as key to save player data
-    local playerId = string.sub(GetPlayerIdentifier(source, 0), 7, -1)
-    playersData[playerId] = data
-
-    -- Save file
-    local file = io.open(playersDataFile, "w+")
-    if file then
-        local contents = json.encode(playersData)
-        file:write(contents)
-        io.close(file)
-    end
+-- helper for deleting race
+function deleteRace(name)
+    MRP.deleteQuery('race_tracks', {name = name})
 end

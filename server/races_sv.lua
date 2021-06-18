@@ -87,19 +87,20 @@ AddEventHandler("StreetRaces:joinRace_sv", function(index)
     -- Validate and deduct player money
     local race = races[index]
     local amount = race.amount
-    local playerMoney = getMoney(source)
+    local playerId = source
+    local playerMoney = getMoney(playerId)
     if playerMoney >= amount then
         -- Deduct money from player and add to prize pool
-        removeMoney(source, amount)
+        removeMoney(playerId, amount)
         race.prize = race.prize + amount
 
         -- Add player to race and send join event back to client
-        table.insert(races[index].players, source)
-        TriggerClientEvent("StreetRaces:joinedRace_cl", source, index)
+        table.insert(races[index].players, playerId)
+        TriggerClientEvent("StreetRaces:joinedRace_cl", playerId, index)
     else
         -- Insufficient money, send notification back to client
         local msg = "Insuffient funds to join race"
-        notifyPlayer(source, msg)
+        notifyPlayer(playerId, msg)
     end
 end)
 
@@ -124,8 +125,9 @@ AddEventHandler("StreetRaces:finishedRace_sv", function(index, time)
     -- Check player was part of the race
     local race = races[index]
     local players = race.players
+    local playerId = source
     for index, player in pairs(players) do
-        if source == player then 
+        if playerId == player then 
             -- Calculate finish time
             local time = GetGameTimer()
             local timeSeconds = (time - race.startTime)/1000.0
@@ -136,22 +138,22 @@ AddEventHandler("StreetRaces:finishedRace_sv", function(index, time)
             if race.finishTime == 0 then
                 -- Winner, set finish time and award prize money
                 race.finishTime = time
-                addMoney(source, race.prize)
+                addMoney(playerId, race.prize)
 
                 -- Send winner notification to players
                 for _, pSource in pairs(players) do
-                    if pSource == source then
+                    if pSource == playerId then
                         local msg = ("You won [%02d:%06.3f]"):format(timeMinutes, timeSeconds)
                         notifyPlayer(pSource, msg)
                     elseif config_sv.notifyOfWinner then
-                        local msg = ("%s won [%02d:%06.3f]"):format(getName(source), timeMinutes, timeSeconds)
+                        local msg = ("%s won [%02d:%06.3f]"):format(getName(playerId), timeMinutes, timeSeconds)
                         notifyPlayer(pSource, msg)
                     end
                 end
             else
                 -- Loser, send notification to only the player
                 local msg = ("You lost [%02d:%06.3f]"):format(timeMinutes, timeSeconds)
-                notifyPlayer(source, msg)
+                notifyPlayer(playerId, msg)
             end
 
             -- Remove player form list and break
@@ -169,35 +171,38 @@ AddEventHandler("StreetRaces:saveRace_sv", function(name, checkpoints)
         checkpoint.blip = nil
         checkpoint.coords = {x = checkpoint.coords.x, y = checkpoint.coords.y, z = checkpoint.coords.z}
     end
+    
+    local playerId = source
 
     -- Get saved player races, add race and save
-    local playerRaces = loadPlayerData(source)
+    local playerRaces = {name = name}
     playerRaces[name] = checkpoints
-    savePlayerData(source, playerRaces)
+    savePlayerData(playerId, playerRaces)
 
     -- Send notification to player
     local msg = "Saved " .. name
-    notifyPlayer(source, msg)
+    notifyPlayer(playerId, msg)
 end)
 
 -- Server event for deleting recorded race
 RegisterNetEvent("StreetRaces:deleteRace_sv")
 AddEventHandler("StreetRaces:deleteRace_sv", function(name)
+    local playerId = source
     -- Get saved player races
-    local playerRaces = loadPlayerData(source)
+    local playerRaces = loadPlayerData(playerId)
 
     -- Check if race with name exists
     if playerRaces[name] ~= nil then
         -- Delete race and save data
         playerRaces[name] = nil
-        savePlayerData(source, playerRaces)
+        deleteRace(name)
 
         -- Send notification to player
         local msg = "Deleted " .. name
-        notifyPlayer(source, msg)
+        notifyPlayer(playerId, msg)
     else
         local msg = "No race found with name " .. name
-        notifyPlayer(source, msg)
+        notifyPlayer(playerId, msg)
     end
 end)
 
@@ -207,7 +212,8 @@ AddEventHandler("StreetRaces:listRaces_sv", function()
     -- Get saved player races and iterate through saved races
     local msg = "Saved races: "
     local count = 0
-    local playerRaces = loadPlayerData(source)
+    local playerId = source
+    local playerRaces = loadPlayerData(playerId)
     for name, race in pairs(playerRaces) do
         msg = msg .. name .. ", "
         count = count + 1
@@ -219,26 +225,27 @@ AddEventHandler("StreetRaces:listRaces_sv", function()
     end
 
     -- Send notification to player with listing
-    notifyPlayer(source, msg)
+    notifyPlayer(playerId, msg)
 end)
 
 -- Server event for loaded recorded race
 RegisterNetEvent("StreetRaces:loadRace_sv")
 AddEventHandler("StreetRaces:loadRace_sv", function(name)
+    local playerId = source
     -- Get saved player races and load race
-    local playerRaces = loadPlayerData(source)
+    local playerRaces = loadPlayerData(playerId)
     local race = playerRaces[name]
 
     -- If race was found send it to the client
     if race ~= nil then
         -- Send race data to client
-        TriggerClientEvent("StreetRaces:loadRace_cl", source, race)
+        TriggerClientEvent("StreetRaces:loadRace_cl", playerId, race)
 
         -- Send notification to player
         local msg = "Loaded " .. name
-        notifyPlayer(source, msg)
+        notifyPlayer(playerId, msg)
     else
         local msg = "No race found with name " .. name
-        notifyPlayer(source, msg)
+        notifyPlayer(playerId, msg)
     end
 end)
