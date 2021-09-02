@@ -43,10 +43,6 @@ function notifyPlayer(source, msg)
     TriggerClientEvent('chatMessage', source, "[StreetRaces]", {255, 0, 0}, msg)
 end
 
--- Saved player data and file
-local playersData = nil
-local playersDataFile = "./StreetRaces_saveData.txt"
-
 -- Helper function for loading saved player data
 function loadPlayerData(source)
     local playerData = nil
@@ -57,7 +53,10 @@ function loadPlayerData(source)
         for name, value in pairs(res) do
             for k, race in pairs(value) do
                 if k ~= "name" and k ~= "_id" then
-                    playerData[k] = race
+                    playerData[k] = {
+                        checkpoints = race,
+                        data = value.data,
+                    }
                 end
             end
         end
@@ -72,6 +71,7 @@ end
 
 -- Helper function for saving player data
 function savePlayerData(source, data)
+    print(json.encode(data))
     MRP.update('race_tracks', data, {name = data.name}, {upsert=true}, function(res)
         print('race track saved')
     end)
